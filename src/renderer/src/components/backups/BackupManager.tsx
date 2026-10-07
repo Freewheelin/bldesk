@@ -46,8 +46,10 @@ import {
   optionsFor,
   readBackupSchedule,
   scheduleBodyFields,
+  scheduleDraft,
   scheduleFields,
-  type BackupSchedule,
+  setScheduleEdit,
+  type ScheduleEdits,
   type ScheduleField
 } from '../../lib/backupSchedule'
 
@@ -117,7 +119,9 @@ export const BackupManager: React.FC<BackupManagerProps> = ({ client, initialSer
   const [isChangingSchedule, setIsChangingSchedule] = useState(false)
   const [changing, setChanging] = useState(false)
   const changingRef = useRef(false)
-  const [draft, setDraft] = useState<BackupSchedule | null>(null)
+  // Only what the user has chosen in the form. The rest is the schedule the server reports now (`draft`, below), so it follows
+  // the 15-second refresh of the server list instead of being a copy taken when the form opened.
+  const [edits, setEdits] = useState<ScheduleEdits>({})
 
   const backups = backupsQuery.data || []
   const actions = actionsQuery.data || []
@@ -156,6 +160,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({ client, initialSer
   // ones and the day of the month only with monthly ones (see lib/backupSchedule.ts).
   const schedule = readBackupSchedule(activeServer)
   const shownFields = scheduleFields(activeServer?.selected_size_options)
+  const draft = schedule ? scheduleDraft(schedule, edits) : null
   const changedNow = schedule && draft ? changedFields(schedule, draft, shownFields) : []
 
   // One take at a time, from the submit until the request is sent or the dialog is cancelled. A second submit would send
@@ -601,7 +606,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({ client, initialSer
           {schedule && (
             <button
               onClick={() => {
-                setDraft(schedule)
+                setEdits({})
                 setIsChangingSchedule(true)
               }}
               className="px-3 py-1.5 text-xs font-medium rounded transition border whitespace-nowrap text-[#017cb6] bg-[#017cb6]/10 border-[#017cb6]/30 hover:bg-[#017cb6]/20"
@@ -818,7 +823,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({ client, initialSer
                 </label>
                 <select
                   value={draft[field]}
-                  onChange={(e) => setDraft({ ...draft, [field]: Number(e.target.value) })}
+                  onChange={(e) => setEdits((prev) => setScheduleEdit(prev, field, Number(e.target.value), schedule))}
                   className="w-full bg-[#f8f9fa] dark:bg-[#212529] border border-[#ced4da] dark:border-[#373b3e] text-xs text-[#212529] dark:text-white px-3 py-2 rounded focus:outline-none focus:border-[#017cb6]"
                 >
                   {optionsFor(field, schedule[field]).map((n) => (

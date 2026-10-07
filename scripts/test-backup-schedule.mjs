@@ -16,7 +16,9 @@ import {
   optionsFor,
   readBackupSchedule,
   scheduleBodyFields,
-  scheduleFields
+  scheduleDraft,
+  scheduleFields,
+  setScheduleEdit
 } from '../src/renderer/src/lib/backupSchedule.ts'
 
 const spec = JSON.parse(readFileSync(new URL('../openapi.json', import.meta.url), 'utf8'))
@@ -104,4 +106,51 @@ test('only what changed is sent, and a field that does not apply is never touche
   assert.deepEqual(changedFields(now, { hour: 0, dayOfWeek: 6, dayOfMonth: 28 }, ['hour', 'dayOfWeek', 'dayOfMonth']), ['hour', 'dayOfWeek', 'dayOfMonth'])
   assert.deepEqual(scheduleBodyFields({ hour: 0, dayOfWeek: 6, dayOfMonth: 28 }, ['hour', 'dayOfWeek', 'dayOfMonth']), { backup_hour_of_day: 0, backup_day_of_week: 6, backup_day_of_month: 28 })
   assert.ok('backup_hour_of_day' in scheduleBodyFields({ ...now, hour: 0 }, ['hour']), 'midnight (0) is a value, not "unchanged"')
+})
+
+test('a refresh while the form is open keeps what the user did not touch following the server (only the edited field is sent)', () => {
+  const fields = ['hour', 'dayOfWeek', 'dayOfMonth']
+  const opened = { hour: 2, dayOfWeek: 0, dayOfMonth: 1 }
+  // The user edits only the hour ...
+  const edits = setScheduleEdit({}, 'hour', 3, opened)
+  assert.deepEqual(edits, { hour: 3 })
+  // ... and meanwhile someone changes the weekday elsewhere (mPanel), which the next read of the server list reports.
+  const refreshed = { ...opened, dayOfWeek: 5 }
+  const draft = scheduleDraft(refreshed, edits)
+  assert.deepEqual(draft, { hour: 3, dayOfWeek: 5, dayOfMonth: 1 }, 'the form shows their weekday, not the one it opened with')
+  const changed = changedFields(refreshed, draft, fields)
+  assert.deepEqual(changed, ['hour'], 'the weekday is not proposed as a change')
+  assert.deepEqual(scheduleBodyFields(draft, changed), { backup_hour_of_day: 3 }, 'the request holds only the hour')
+  // The old behaviour: a copy of the schedule taken when the form opened. It would send the old weekday back.
+  const copy = { ...opened, hour: 3 }
+  assert.deepEqual(changedFields(refreshed, copy, fields), ['hour', 'dayOfWeek'], 'what a copy taken at open would have proposed')
+})
+
+test('nothing edited means nothing changed, however the server list moves', () => {
+  const opened = { hour: 2, dayOfWeek: 0, dayOfMonth: 1 }
+  const refreshed = { hour: 9, dayOfWeek: 4, dayOfMonth: 20 }
+  const draft = scheduleDraft(refreshed, {})
+  assert.deepEqual(draft, refreshed)
+  assert.deepEqual(changedFields(refreshed, draft, ['hour', 'dayOfWeek', 'dayOfMonth']), [])
+  assert.deepEqual(scheduleDraft(opened, {}), opened)
+})
+
+test('a field the user puts back is no longer an edit, and a field they chose stays theirs when the server moves', () => {
+  const opened = { hour: 2, dayOfWeek: 0, dayOfMonth: 1 }
+  let edits = setScheduleEdit({}, 'hour', 3, opened)
+  edits = setScheduleEdit(edits, 'dayOfWeek', 6, opened)
+  assert.deepEqual(edits, { hour: 3, dayOfWeek: 6 })
+  edits = setScheduleEdit(edits, 'hour', 2, opened)
+  assert.deepEqual(edits, { dayOfWeek: 6 }, 'choosing what the server reports clears the edit')
+  // The server's hour moves meanwhile; the user's weekday choice stays, and the hour they never touched follows the server.
+  const refreshed = { ...opened, hour: 7 }
+  const draft = scheduleDraft(refreshed, edits)
+  assert.deepEqual(draft, { hour: 7, dayOfWeek: 6, dayOfMonth: 1 })
+  assert.deepEqual(changedFields(refreshed, draft, ['hour', 'dayOfWeek']), ['dayOfWeek'])
+  // The server catches up with the user's choice: it is no change any more.
+  assert.deepEqual(changedFields({ ...refreshed, dayOfWeek: 6 }, draft, ['hour', 'dayOfWeek']), [])
+  // The edits are not changed in place.
+  const before = { hour: 3 }
+  setScheduleEdit(before, 'dayOfWeek', 1, opened)
+  assert.deepEqual(before, { hour: 3 })
 })

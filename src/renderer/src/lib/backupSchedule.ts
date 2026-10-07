@@ -97,6 +97,29 @@ export function invalidValue(field: ScheduleField, value: number): string | null
   return whole(value) && value >= min && value <= max ? null : `${field} must be a whole number from ${min} to ${max}`
 }
 
+/** What the user has chosen in the form so far: only the fields they touched. */
+export type ScheduleEdits = Partial<BackupSchedule>
+
+/**
+ * The user choosing `value` for `field`. Choosing what the server reports now clears the edit, so a field put back is no
+ * change at all and is not remembered as one.
+ */
+export function setScheduleEdit(edits: ScheduleEdits, field: ScheduleField, value: number, live: BackupSchedule): ScheduleEdits {
+  const next = { ...edits }
+  if (value === live[field]) delete next[field]
+  else next[field] = value
+  return next
+}
+
+/**
+ * What the form shows: the schedule the server reports now, with the user's own choices on top. A field the user has not
+ * touched follows the server when the list is read again (every 15 seconds), so a change made elsewhere meanwhile, in
+ * mPanel for one, is shown and is not sent back as if the user had chosen the old value.
+ */
+export function scheduleDraft(live: BackupSchedule, edits: ScheduleEdits): BackupSchedule {
+  return { ...live, ...edits }
+}
+
 /** What differs between the schedule now and the one asked for, for the fields that apply. */
 export function changedFields(current: BackupSchedule, next: BackupSchedule, fields: ScheduleField[]): ScheduleField[] {
   return fields.filter((f) => current[f] !== next[f])
