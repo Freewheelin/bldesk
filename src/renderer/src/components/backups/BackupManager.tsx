@@ -609,7 +609,7 @@ export const BackupManager: React.FC<BackupManagerProps> = ({ client, initialSer
                 setEdits({})
                 setIsChangingSchedule(true)
               }}
-              className="px-3 py-1.5 text-xs font-medium rounded transition border whitespace-nowrap text-[#017cb6] bg-[#017cb6]/10 border-[#017cb6]/30 hover:bg-[#017cb6]/20"
+              className="px-3 py-1.5 text-xs font-medium text-white bg-[#017cb6] hover:bg-[#016594] rounded transition whitespace-nowrap shadow-sm"
             >
               Change Schedule
             </button>

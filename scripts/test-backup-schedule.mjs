@@ -5,14 +5,11 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
-  DAYS_OF_MONTH,
-  HOURS,
   WEEKDAYS,
   changedFields,
   formatDayOfMonth,
   formatHour,
   formatWeekday,
-  invalidValue,
   optionsFor,
   readBackupSchedule,
   scheduleBodyFields,
@@ -26,16 +23,13 @@ const change = spec.components.schemas.ChangeBackupSchedule.properties
 const settings = spec.components.schemas.BackupSettings.properties
 
 test('the ranges are the reference\'s own (ChangeBackupSchedule)', () => {
-  const edge = (field, prop) => [change[prop].minimum, change[prop].maximum].map((n) => [n, invalidValue(field, n), invalidValue(field, n - 1), invalidValue(field, n + 1)])
   for (const [field, prop] of [['hour', 'backup_hour_of_day'], ['dayOfWeek', 'backup_day_of_week'], ['dayOfMonth', 'backup_day_of_month']]) {
-    const [[min, minOk, belowMin], [max, maxOk, , aboveMax]] = edge(field, prop)
-    assert.equal(minOk, null, `${field} accepts the reference's minimum ${min}`)
-    assert.equal(maxOk, null, `${field} accepts the reference's maximum ${max}`)
-    assert.notEqual(belowMin, null, `${field} refuses ${min - 1}`)
-    assert.notEqual(aboveMax, null, `${field} refuses ${max + 1}`)
+    const { minimum, maximum } = change[prop]
+    // With the server's value inside the range, the selector offers exactly the reference's minimum to maximum.
+    const range = Array.from({ length: maximum - minimum + 1 }, (_, i) => minimum + i)
+    assert.deepEqual(optionsFor(field, minimum), range, `${field} offers ${minimum} to ${maximum}`)
+    assert.deepEqual(optionsFor(field, maximum), range, `${field} offers ${minimum} to ${maximum}`)
   }
-  assert.deepEqual(HOURS, Array.from({ length: change.backup_hour_of_day.maximum + 1 }, (_, i) => i))
-  assert.deepEqual(DAYS_OF_MONTH, Array.from({ length: change.backup_day_of_month.maximum }, (_, i) => i + 1))
   assert.equal(WEEKDAYS.length, change.backup_day_of_week.maximum + 1)
   assert.equal(WEEKDAYS[0], 'Sunday', 'Sunday is day 0')
 })
@@ -89,9 +83,6 @@ test('a selector offers the range, and the current value too when the API report
   assert.deepEqual(optionsFor('dayOfMonth', 31).slice(0, 3), [31, 1, 2])
   assert.equal(optionsFor('dayOfMonth', 31).length, 29)
   assert.equal(optionsFor('hour', 5).length, 24)
-  assert.equal(invalidValue('dayOfMonth', 31) !== null, true, 'but 31 is not something to send')
-  assert.notEqual(invalidValue('hour', 1.5), null)
-  assert.notEqual(invalidValue('hour', Number.NaN), null)
 })
 
 test('only what changed is sent, and a field that does not apply is never touched', () => {

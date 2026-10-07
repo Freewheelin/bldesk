@@ -23,11 +23,7 @@ export interface BackupSchedule {
 
 export type ScheduleField = keyof BackupSchedule
 
-export const SCHEDULE_TIME_ZONE = 'Australia/Sydney'
-export const HOURS = Array.from({ length: 24 }, (_, h) => h)
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const
-export const WEEKDAY_NUMBERS = WEEKDAYS.map((_, d) => d)
-export const DAYS_OF_MONTH = Array.from({ length: 28 }, (_, i) => i + 1)
 
 const RANGES: Record<ScheduleField, [number, number]> = { hour: [0, 23], dayOfWeek: [0, 6], dayOfMonth: [1, 28] }
 
@@ -89,12 +85,6 @@ export function optionsFor(field: ScheduleField, current: number): number[] {
   const [min, max] = RANGES[field]
   const all = Array.from({ length: max - min + 1 }, (_, i) => min + i)
   return all.includes(current) ? all : [current, ...all]
-}
-
-/** A value the API would refuse: not a whole number, or outside the field's range. Null when it is fine. */
-export function invalidValue(field: ScheduleField, value: number): string | null {
-  const [min, max] = RANGES[field]
-  return whole(value) && value >= min && value <= max ? null : `${field} must be a whole number from ${min} to ${max}`
 }
 
 /** What the user has chosen in the form so far: only the fields they touched. */
